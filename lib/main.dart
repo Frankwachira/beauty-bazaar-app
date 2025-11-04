@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:intl/intl.dart';
@@ -11,11 +12,13 @@ void main() {
   if (kIsWeb) {
     databaseFactory = databaseFactoryFfiWeb;
   } else {
-    if (defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.linux ||
-        defaultTargetPlatform == TargetPlatform.macOS) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
+    try {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
+      }
+    } catch (_) {
+      // Platform not available (e.g., mobile). Use default sqflite.
     }
   }
   runApp(const BeautyBazaarApp());
@@ -31,14 +34,22 @@ class BeautyBazaarApp extends StatelessWidget {
     return MaterialApp(
       title: 'BeautyBazaar',
       theme: base.copyWith(
-        colorScheme: ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.light),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: seed,
+          brightness: Brightness.light,
+        ),
         scaffoldBackgroundColor: const Color(0xFFFFF7FB),
-        appBarTheme: const AppBarTheme(backgroundColor: seed, foregroundColor: Colors.white),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: seed,
+          foregroundColor: Colors.white,
+        ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: seed,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           ),
         ),
@@ -81,11 +92,14 @@ class HomeScreen extends StatelessWidget {
             ),
             Text(
               'Welcome to BeautyBazaar!',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.black87),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
-              'WHERE BEAUTY MEETS EXPERTS, Book your appoinment.',
+              'Book your service and time, or login as admin to view revenue.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 30),
@@ -93,15 +107,9 @@ class HomeScreen extends StatelessWidget {
               icon: const Icon(Icons.calendar_today),
               label: const Text('Book an Appointment'),
               onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BookingScreen()));
-              },
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.search),
-              label: const Text('Find/Cancel My Booking'),
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FindBookingScreen()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BookingScreen()),
+                );
               },
             ),
             const SizedBox(height: 16),
@@ -109,7 +117,9 @@ class HomeScreen extends StatelessWidget {
               icon: const Icon(Icons.lock),
               label: const Text('Admin Login'),
               onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminLoginScreen()));
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
+                );
               },
             ),
           ],
@@ -148,49 +158,56 @@ class _BookingScreenState extends State<BookingScreen> {
       initialDate: now,
     );
     if (date == null) return;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
     if (time == null) return;
     setState(() {
-      _selectedDateTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      _selectedDateTime = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
   Future<void> _submit() async {
-    final formState = _formKey.currentState;
-    if (formState == null || !formState.validate()) return;
-    final selectedService = _selectedService;
-    final selectedDateTime = _selectedDateTime;
-    if (selectedService == null || selectedDateTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select service, date and time')));
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedService == null || _selectedDateTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select service, date and time')),
+      );
       return;
     }
     final booking = Booking(
       clientName: _nameController.text.trim(),
       phoneNumber: _phoneController.text.trim(),
-      serviceId: selectedService.id,
-      serviceName: selectedService.name,
-      priceKsh: selectedService.priceKsh,
-      appointmentDateTime: selectedDateTime,
+      serviceId: _selectedService!.id,
+      serviceName: _selectedService!.name,
+      priceKsh: _selectedService!.priceKsh,
+      appointmentDateTime: _selectedDateTime!,
     );
-    try {
-      await AppDatabase().insertBooking(booking);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving booking: $e')));
-      return;
-    }
+    await AppDatabase().insertBooking(booking);
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Booking Confirmed'),
-        content: Text('Thank you, your booking for ${selectedService.name} on ${DateFormat('EEE, d MMM yyyy • HH:mm').format(selectedDateTime)} is confirmed.'),
+        content: Text(
+          'Thank you, your booking for ${_selectedService!.name} on ${DateFormat('EEE, d MMM yyyy • HH:mm').format(_selectedDateTime!)} is confirmed.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
         ],
       ),
     );
-    formState.reset();
+    _formKey.currentState!.reset();
     setState(() {
       _selectedService = ServicesCatalog.all.first;
       _selectedDateTime = null;
@@ -205,129 +222,58 @@ class _BookingScreenState extends State<BookingScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Full Name'),
-              validator: (v) => (v == null || v.trim().length < 2) ? 'Enter a valid name' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _phoneController,
-              decoration: const InputDecoration(labelText: 'Phone Number'),
-              keyboardType: TextInputType.phone,
-              validator: (v) => (v == null || v.trim().length < 9) ? 'Enter a valid phone' : null,
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<Service>(
-              value: _selectedService,
-              decoration: const InputDecoration(labelText: 'Service'),
-              items: [
-                for (final s in ServicesCatalog.all)
-                  DropdownMenuItem(value: s, child: Text('${s.name} — KSH ${s.priceKsh}')),
-              ],
-              onChanged: (s) => setState(() => _selectedService = s),
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(_selectedDateTime == null ? 'Select Date & Time' : DateFormat('EEE, d MMM yyyy • HH:mm').format(_selectedDateTime!)),
-              trailing: const Icon(Icons.schedule),
-              onTap: _pickDateTime,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(onPressed: _submit, child: const Text('Confirm Booking')),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class FindBookingScreen extends StatefulWidget {
-  const FindBookingScreen({super.key});
-  @override
-  State<FindBookingScreen> createState() => _FindBookingScreenState();
-}
-
-class _FindBookingScreenState extends State<FindBookingScreen> {
-  final _phoneController = TextEditingController();
-  List<Booking> _results = const [];
-  bool _loading = false;
-
-  @override
-  void dispose() {
-    _phoneController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search() async {
-    setState(() => _loading = true);
-    final items = await AppDatabase().findBookingsByPhone(_phoneController.text.trim());
-    setState(() {
-      _results = items;
-      _loading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Find/Cancel My Booking')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            TextField(
-              controller: _phoneController,
-              decoration: const InputDecoration(labelText: 'Phone Number'),
-              keyboardType: TextInputType.phone,
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: _search, child: const Text('Search')),
-            const SizedBox(height: 16),
-            if (_loading) const CircularProgressIndicator(),
-            if (!_loading)
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (final b in _results)
-                      Card(
-                        child: ListTile(
-                          title: Text('${b.serviceName} — KSH ${b.priceKsh}'),
-                          subtitle: Text('${b.clientName} • ${DateFormat('EEE, d MMM • HH:mm').format(b.appointmentDateTime)}${b.status == 'cancelled' ? '   •   CANCELLED' : ''}'),
-                          trailing: b.status == 'active'
-                              ? IconButton(
-                                  icon: const Icon(Icons.cancel, color: Colors.redAccent),
-                                  onPressed: () async {
-                                    if (b.id == null) return;
-                                    await AppDatabase().cancelBooking(b.id!);
-                                    await _search();
-                                  },
-                                )
-                              : null,
-                        ),
-                      ),
-                  ],
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Full Name'),
+                validator: (v) => (v == null || v.trim().length < 2)
+                    ? 'Enter a valid name'
+                    : null,
               ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AdminLimitedScreen extends StatelessWidget {
-  const AdminLimitedScreen({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Admin')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('You are logged in but do not have permission to view bookings or revenue. Please contact the owner.'),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _phoneController,
+                decoration: const InputDecoration(labelText: 'Phone Number'),
+                keyboardType: TextInputType.phone,
+                validator: (v) => (v == null || v.trim().length < 9)
+                    ? 'Enter a valid phone'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<Service>(
+                initialValue: _selectedService,
+                decoration: const InputDecoration(labelText: 'Service'),
+                items: [
+                  for (final s in ServicesCatalog.all)
+                    DropdownMenuItem(
+                      value: s,
+                      child: Text('${s.name} — KSH ${s.priceKsh}'),
+                    ),
+                ],
+                onChanged: (s) => setState(() => _selectedService = s),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  _selectedDateTime == null
+                      ? 'Select Date & Time'
+                      : DateFormat(
+                          'EEE, d MMM yyyy • HH:mm',
+                        ).format(_selectedDateTime!),
+                ),
+                trailing: const Icon(Icons.schedule),
+                onTap: _pickDateTime,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _submit,
+                child: const Text('Confirm Booking'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -354,26 +300,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   }
 
   void _login() {
-    final form = _formKey.currentState;
-    if (form == null || !form.validate()) return;
-    final username = _userController.text.trim();
-    final password = _passController.text;
-    final db = AppDatabase();
-    db.validateLogin(username, password).then((ok) async {
-      if (ok) {
-        final role = await db.getUserRole(username);
-        if (!mounted) return;
-        if (role == 'owner') {
-          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const AdminDashboard()));
-        } else {
-          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const AdminLimitedScreen()));
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid credentials')));
-      }
-    }).catchError((e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Login error: $e')));
-    });
+    if (!_formKey.currentState!.validate()) return;
+    if (_userController.text == 'admin' && _passController.text == 'admin123') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const AdminDashboard()),
+      );
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid credentials')));
+    }
   }
 
   @override
@@ -384,35 +320,35 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            TextFormField(
-              controller: _userController,
-              decoration: const InputDecoration(labelText: 'Username'),
-              validator: (v) => (v == null || v.isEmpty) ? 'Enter username' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _passController,
-              obscureText: _obscure,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                suffixIcon: IconButton(
-                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _userController,
+                decoration: const InputDecoration(labelText: 'Username'),
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Enter username' : null,
               ),
-              validator: (v) => (v == null || v.length < 4) ? 'Enter password' : null,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(onPressed: _login, child: const Text('Login')),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AdminRegisterScreen()));
-              },
-              child: const Text('Create an admin account'),
-            ),
-          ]),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _passController,
+                obscureText: _obscure,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
+                ),
+                validator: (v) =>
+                    (v == null || v.length < 4) ? 'Enter password' : null,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(onPressed: _login, child: const Text('Login')),
+            ],
+          ),
         ),
       ),
     );
@@ -438,7 +374,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   Future<void> _load() async {
     final db = AppDatabase();
-    final rev = await db.getMonthlyRevenueKsh(_selectedMonth.year, _selectedMonth.month);
+    final rev = await db.getMonthlyRevenueKsh(
+      _selectedMonth.year,
+      _selectedMonth.month,
+    );
     final all = await db.getAllBookings();
     setState(() {
       _revenue = rev;
@@ -483,119 +422,50 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Revenue — $monthLabel', style: const TextStyle(color: Colors.white70)),
+                        Text(
+                          'Revenue — $monthLabel',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
                         const SizedBox(height: 6),
-                        Text(currency.format(_revenue), style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        Text(
+                          currency.format(_revenue),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton.icon(onPressed: _pickMonth, icon: const Icon(Icons.date_range), label: const Text('Change Month')),
+                ElevatedButton.icon(
+                  onPressed: _pickMonth,
+                  icon: const Icon(Icons.date_range),
+                  label: const Text('Change Month'),
+                ),
               ],
             ),
             const SizedBox(height: 24),
-            Text('Bookings', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              'Bookings',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             for (final b in _bookings)
               Card(
                 child: ListTile(
                   title: Text('${b.clientName} — ${b.serviceName}'),
-                subtitle: Text('${DateFormat('EEE, d MMM • HH:mm').format(b.appointmentDateTime)}   •   KSH ${b.priceKsh}${b.status == 'cancelled' ? '   •   CANCELLED' : ''}'),
+                  subtitle: Text(
+                    '${DateFormat('EEE, d MMM • HH:mm').format(b.appointmentDateTime)}   •   KSH ${b.priceKsh}',
+                  ),
                   leading: const Icon(Icons.person),
-                trailing: b.status == 'active'
-                    ? IconButton(
-                        icon: const Icon(Icons.cancel, color: Colors.redAccent),
-                        tooltip: 'Cancel booking',
-                        onPressed: () async {
-                          await AppDatabase().cancelBooking(b.id!);
-                          await _load();
-                        },
-                      )
-                    : null,
                 ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class AdminRegisterScreen extends StatefulWidget {
-  const AdminRegisterScreen({super.key});
-  @override
-  State<AdminRegisterScreen> createState() => _AdminRegisterScreenState();
-}
-
-class _AdminRegisterScreenState extends State<AdminRegisterScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _userController = TextEditingController();
-  final _passController = TextEditingController();
-  final _confirmController = TextEditingController();
-  bool _obscure = true;
-
-  @override
-  void dispose() {
-    _userController.dispose();
-    _passController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _register() async {
-    final form = _formKey.currentState;
-    if (form == null || !form.validate()) return;
-    final username = _userController.text.trim();
-    final password = _passController.text;
-    try {
-      await AppDatabase().createUser(username, password);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account created. You can now login.')));
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not create account: $e')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Create Admin Account')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            TextFormField(
-              controller: _userController,
-              decoration: const InputDecoration(labelText: 'Username'),
-              validator: (v) => (v == null || v.trim().length < 3) ? 'Minimum 3 characters' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _passController,
-              obscureText: _obscure,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                suffixIcon: IconButton(
-                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                ),
-              ),
-              validator: (v) => (v == null || v.length < 6) ? 'Minimum 6 characters' : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _confirmController,
-              obscureText: _obscure,
-              decoration: const InputDecoration(labelText: 'Confirm Password'),
-              validator: (v) => (v != _passController.text) ? 'Passwords do not match' : null,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(onPressed: _register, child: const Text('Create Account')),
-          ]),
         ),
       ),
     );
