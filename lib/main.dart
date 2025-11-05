@@ -7,20 +7,40 @@ import 'package:intl/intl.dart';
 import 'models.dart';
 import 'db.dart';
 
-void main() {
+void main() async {
   // Cross-platform database initialization
+  WidgetsFlutterBinding.ensureInitialized();
+
   if (kIsWeb) {
     databaseFactory = databaseFactoryFfiWeb;
   } else {
+    // For desktop platforms (Windows, Linux, macOS), initialize FFI
+    // For mobile platforms, the default sqflite factory will be used
     try {
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         sqfliteFfiInit();
         databaseFactory = databaseFactoryFfi;
       }
-    } catch (_) {
-      // Platform not available (e.g., mobile). Use default sqflite.
+      // On mobile (Android/iOS), databaseFactory stays null
+      // This is fine - default sqflite will be used
+    } catch (e) {
+      // Platform detection failed - fallback to default sqflite
+      // The db.dart file will handle initialization if needed
     }
   }
+
+  // Ensure admin user exists on app start
+  try {
+    final db = AppDatabase();
+    final adminExists = await db.usernameExists('admin');
+    if (!adminExists) {
+      await db.createUser('admin', 'admin123');
+    }
+  } catch (e) {
+    // If admin already exists or error occurs, continue
+    // This ensures the app can still run
+  }
+
   runApp(const BeautyBazaarApp());
 }
 
@@ -139,8 +159,25 @@ class _BookingScreenState extends State<BookingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  Service? _selectedService = ServicesCatalog.all.first;
+  Service? _selectedService;
   DateTime? _selectedDateTime;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with first service - ensure it's never null
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ServicesCatalog.all.isNotEmpty && _selectedService == null) {
+        setState(() {
+          _selectedService = ServicesCatalog.all.first;
+        });
+      }
+    });
+    if (ServicesCatalog.all.isNotEmpty) {
+      _selectedService = ServicesCatalog.all.first;
+    }
+  }
 
   @override
   void dispose() {
@@ -175,43 +212,72 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_selectedService == null || _selectedDateTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select service, date and time')),
-      );
+    if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
       return;
     }
-    final booking = Booking(
-      clientName: _nameController.text.trim(),
-      phoneNumber: _phoneController.text.trim(),
-      serviceId: _selectedService!.id,
-      serviceName: _selectedService!.name,
-      priceKsh: _selectedService!.priceKsh,
-      appointmentDateTime: _selectedDateTime!,
-    );
-    await AppDatabase().insertBooking(booking);
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Booking Confirmed'),
-        content: Text(
-          'Thank you, your booking for ${_selectedService!.name} on ${DateFormat('EEE, d MMM yyyy • HH:mm').format(_selectedDateTime!)} is confirmed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+    
+    // Double check that we have all required values
+    final selectedService = _selectedService;
+    final selectedDateTime = _selectedDateTime;
+    
+    if (selectedService == null || selectedDateTime == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select service, date and time')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final booking = Booking(
+        clientName: _nameController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        serviceId: selectedService.id,
+        serviceName: selectedService.name,
+        priceKsh: selectedService.priceKsh,
+        appointmentDateTime: selectedDateTime,
+      );
+      await AppDatabase().insertBooking(booking);
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Booking Confirmed'),
+          content: Text(
+            'Thank you, your booking for ${selectedService.name} on ${DateFormat('EEE, d MMM yyyy • HH:mm').format(selectedDateTime)} is confirmed.',
           ),
-        ],
-      ),
-    );
-    _formKey.currentState!.reset();
-    setState(() {
-      _selectedService = ServicesCatalog.all.first;
-      _selectedDateTime = null;
-    });
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pop(); // Go back to home screen
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      if (_formKey.currentState != null) {
+        _formKey.currentState!.reset();
+      }
+      setState(() {
+        if (ServicesCatalog.all.isNotEmpty) {
+          _selectedService = ServicesCatalog.all.first;
+        }
+        _selectedDateTime = null;
+        _isSubmitting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+    }
   }
 
   @override
@@ -243,34 +309,66 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<Service>(
-                initialValue: _selectedService,
                 decoration: const InputDecoration(labelText: 'Service'),
-                items: [
-                  for (final s in ServicesCatalog.all)
-                    DropdownMenuItem(
-                      value: s,
-                      child: Text('${s.name} — KSH ${s.priceKsh}'),
-                    ),
-                ],
-                onChanged: (s) => setState(() => _selectedService = s),
+                items: ServicesCatalog.all.isEmpty
+                    ? null
+                    : [
+                        for (final s in ServicesCatalog.all)
+                          DropdownMenuItem(
+                            value: s,
+                            child: Text('${s.name} — KSH ${s.priceKsh}'),
+                          ),
+                      ],
+                value: _selectedService,
+                onChanged: (s) {
+                  if (s != null) {
+                    setState(() => _selectedService = s);
+                  }
+                },
+                validator: (value) {
+                  if (value == null) {
+                    return 'Please select a service';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  _selectedDateTime == null
-                      ? 'Select Date & Time'
-                      : DateFormat(
-                          'EEE, d MMM yyyy • HH:mm',
-                        ).format(_selectedDateTime!),
-                ),
-                trailing: const Icon(Icons.schedule),
+              InkWell(
                 onTap: _pickDateTime,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Date & Time',
+                    suffixIcon: Icon(Icons.schedule),
+                  ),
+                  child: Builder(
+                    builder: (context) {
+                      final dt = _selectedDateTime;
+                      return Text(
+                        dt == null
+                            ? 'Select Date & Time'
+                            : DateFormat(
+                                'EEE, d MMM yyyy • HH:mm',
+                              ).format(dt),
+                        style: TextStyle(
+                          color: dt == null 
+                              ? Colors.grey[600] 
+                              : Colors.black87,
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: _submit,
-                child: const Text('Confirm Booking'),
+                onPressed: _isSubmitting ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Confirm Booking'),
               ),
             ],
           ),
@@ -291,6 +389,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   final _userController = TextEditingController();
   final _passController = TextEditingController();
   bool _obscure = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -299,16 +398,40 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     super.dispose();
   }
 
-  void _login() {
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_userController.text == 'admin' && _passController.text == 'admin123') {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const AdminDashboard()),
+
+    setState(() => _isLoading = true);
+
+    try {
+      final db = AppDatabase();
+      final isValid = await db.validateLogin(
+        _userController.text.trim(),
+        _passController.text.trim(),
       );
-    } else {
+
+      if (!mounted) return;
+
+      if (isValid) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const AdminDashboard()),
+          );
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Invalid credentials')));
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Invalid credentials')));
+      ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
     }
   }
 
@@ -346,7 +469,16 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     (v == null || v.length < 4) ? 'Enter password' : null,
               ),
               const SizedBox(height: 20),
-              ElevatedButton(onPressed: _login, child: const Text('Login')),
+              ElevatedButton(
+                onPressed: _isLoading ? null : _login,
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Login'),
+              ),
             ],
           ),
         ),
@@ -373,16 +505,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Future<void> _load() async {
-    final db = AppDatabase();
-    final rev = await db.getMonthlyRevenueKsh(
-      _selectedMonth.year,
-      _selectedMonth.month,
-    );
-    final all = await db.getAllBookings();
-    setState(() {
-      _revenue = rev;
-      _bookings = all;
-    });
+    try {
+      final db = AppDatabase();
+      final rev = await db.getMonthlyRevenueKsh(
+        _selectedMonth.year,
+        _selectedMonth.month,
+      );
+      final all = await db.getAllBookings();
+      if (mounted) {
+        setState(() {
+          _revenue = rev;
+          _bookings = all;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading data: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   Future<void> _pickMonth() async {
@@ -404,7 +546,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final monthLabel = DateFormat('MMMM yyyy').format(_selectedMonth);
     final currency = NumberFormat.currency(locale: 'en_KE', symbol: 'KSH ');
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Dashboard')),
+      appBar: AppBar(
+        title: const Text('Admin Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (route) => false,
+              );
+            },
+            tooltip: 'Logout',
+          ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -455,16 +611,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            for (final b in _bookings)
-              Card(
-                child: ListTile(
-                  title: Text('${b.clientName} — ${b.serviceName}'),
-                  subtitle: Text(
-                    '${DateFormat('EEE, d MMM • HH:mm').format(b.appointmentDateTime)}   •   KSH ${b.priceKsh}',
+            if (_bookings.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Center(child: Text('No bookings found')),
+              )
+            else
+              for (final b in _bookings)
+                Card(
+                  child: ListTile(
+                    title: Text('${b.clientName} — ${b.serviceName}'),
+                    subtitle: Text(
+                      '${DateFormat('EEE, d MMM • HH:mm').format(b.appointmentDateTime)}   •   KSH ${b.priceKsh}   •   ${b.status}',
+                    ),
+                    leading: Icon(
+                      b.status == 'active' ? Icons.check_circle : Icons.cancel,
+                      color: b.status == 'active' ? Colors.green : Colors.red,
+                    ),
                   ),
-                  leading: const Icon(Icons.person),
                 ),
-              ),
           ],
         ),
       ),
