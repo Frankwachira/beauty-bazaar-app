@@ -48,7 +48,12 @@ class AppDatabase {
         }
       }
     } catch (e) {
-      AppLogger.error('Error in database factory setup', e, null, 'AppDatabase');
+      AppLogger.error(
+        'Error in database factory setup',
+        e,
+        null,
+        'AppDatabase',
+      );
       // If all else fails, try to initialize FFI for desktop
       if (!kIsWeb) {
         try {
@@ -65,23 +70,21 @@ class AppDatabase {
     // Try to use factory if available, otherwise use default sqflite
     try {
       final factory = databaseFactory;
-      if (factory != null) {
-        // Use factory for desktop/web platforms
-        final path = kIsWeb
-            ? 'beautybazaar.db'
-            : p.join(await getDatabasesPath(), 'beautybazaar.db');
-        final db = await factory.openDatabase(
-          path,
-          options: OpenDatabaseOptions(
-            version: 4,
-            onCreate: _onCreate,
-            onUpgrade: _onUpgrade,
-          ),
-        );
-        // Defensive: ensure tables exist even if versioning was skipped
-        await _ensureSchema(db);
-        return db;
-      }
+      // Use factory for desktop/web platforms
+      final path = kIsWeb
+          ? 'beautybazaar.db'
+          : p.join(await getDatabasesPath(), 'beautybazaar.db');
+      final db = await factory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 4,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+        ),
+      );
+      // Defensive: ensure tables exist even if versioning was skipped
+      await _ensureSchema(db);
+      return db;
     } catch (_) {
       // Factory usage failed, fall through to default sqflite
     }
@@ -219,9 +222,11 @@ class AppDatabase {
   Future<void> _initializeDefaultServices(Database db) async {
     try {
       // Check if services already exist
-      final existingServices = await db.rawQuery('SELECT COUNT(*) as count FROM services');
+      final existingServices = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM services',
+      );
       final count = (existingServices.first['count'] as int?) ?? 0;
-      
+
       if (count == 0) {
         // Insert default services from ServicesCatalog
         for (final service in ServicesCatalog.all) {
@@ -236,7 +241,12 @@ class AppDatabase {
         AppLogger.info('Default services initialized');
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error initializing default services', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error initializing default services',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
     }
   }
 
@@ -329,7 +339,12 @@ class AppDatabase {
       AppLogger.debug('User count: $count');
       return count > 0;
     } catch (e, stackTrace) {
-      AppLogger.error('Error checking if users exist', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error checking if users exist',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       // Return false on error to show setup screen
       return false;
     }
@@ -339,7 +354,7 @@ class AppDatabase {
     try {
       AppLogger.debug('Creating user: $username');
       final db = await database;
-      
+
       // Validate inputs
       final trimmedUsername = username.trim();
       if (trimmedUsername.isEmpty) {
@@ -354,29 +369,31 @@ class AppDatabase {
       if (password.length < 4) {
         throw Exception('Password must be at least 4 characters');
       }
-      
+
       // Check if username already exists
       final exists = await usernameExists(trimmedUsername);
       if (exists) {
         AppLogger.warning('Username already exists: $trimmedUsername');
-        throw Exception('Username already exists. Please choose a different username.');
+        throw Exception(
+          'Username already exists. Please choose a different username.',
+        );
       }
-      
+
       // First user becomes 'owner', others 'viewer'
       final ownersRows = await db.rawQuery(
         "SELECT COUNT(*) as c FROM users WHERE role = 'owner'",
       );
       final ownersCount = (ownersRows.first['c'] as int?) ?? 0;
       final role = ownersCount == 0 ? 'owner' : 'viewer';
-      
+
       AppLogger.debug('Creating user with role: $role');
-      
+
       // Generate salt and hash password
       final salt = _generateSalt();
       final hash = _hashPassword(password, salt);
-      
+
       AppLogger.debug('Salt generated, hash created');
-      
+
       // Insert user into database
       final userId = await db.insert('users', {
         'username': trimmedUsername,
@@ -385,18 +402,23 @@ class AppDatabase {
         'created_at': DateTime.now().toIso8601String(),
         'role': role,
       });
-      
+
       AppLogger.info('User created successfully with ID: $userId');
-      
+
       // Verify the user was created
       final verifyExists = await usernameExists(trimmedUsername);
       if (!verifyExists) {
         throw Exception('User creation verification failed');
       }
-      
+
       AppLogger.info('User creation verified successfully');
     } catch (e, stackTrace) {
-      AppLogger.error('Error creating user: ${e.toString()}', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error creating user: ${e.toString()}',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       rethrow;
     }
   }
@@ -405,30 +427,30 @@ class AppDatabase {
     try {
       AppLogger.debug('Validating login for: $username');
       final db = await database;
-      
+
       final rows = await db.query(
         'users',
         where: 'username = ?',
         whereArgs: [username.trim()],
         limit: 1,
       );
-      
+
       if (rows.isEmpty) {
         AppLogger.debug('User not found: $username');
         return false;
       }
-      
+
       final salt = rows.first['salt'] as String?;
       final expected = rows.first['password_hash'] as String?;
-      
+
       if (salt == null || expected == null) {
         AppLogger.error('Invalid user data: missing salt or hash');
         return false;
       }
-      
+
       final provided = _hashPassword(password, salt);
       final isValid = provided == expected;
-      
+
       AppLogger.debug('Login validation result: $isValid');
       return isValid;
     } catch (e, stackTrace) {
@@ -502,30 +524,39 @@ class AppDatabase {
   ) async {
     try {
       final endTime = startTime.add(Duration(minutes: durationMinutes));
-      
+
       // Get all active bookings for the same day
       final bookings = await getBookingsForDate(startTime);
-      
+
       // Check if any booking overlaps with the requested time slot
       for (final booking in bookings) {
         final bookingService = ServicesCatalog.getById(booking.serviceId);
         if (bookingService == null) continue;
-        
+
         final bookingStart = booking.appointmentDateTime;
-        final bookingEnd = bookingStart.add(Duration(minutes: bookingService.durationMinutes));
-        
+        final bookingEnd = bookingStart.add(
+          Duration(minutes: bookingService.durationMinutes),
+        );
+
         // Check for overlap: two time slots overlap if:
         // - The new start is before the existing end AND
         // - The new end is after the existing start
         if (startTime.isBefore(bookingEnd) && endTime.isAfter(bookingStart)) {
-          AppLogger.debug('Booking conflict detected: $startTime overlaps with booking ${booking.id}');
+          AppLogger.debug(
+            'Booking conflict detected: $startTime overlaps with booking ${booking.id}',
+          );
           return true;
         }
       }
-      
+
       return false;
     } catch (e, stackTrace) {
-      AppLogger.error('Error checking booking conflict', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error checking booking conflict',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       // On error, assume there's a conflict to be safe
       return true;
     }
@@ -540,29 +571,39 @@ class AppDatabase {
     int durationMinutes,
   ) async {
     try {
-      final startOfDay = DateTime(date.year, date.month, date.day, 7, 0); // 7 AM
+      final startOfDay = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        7,
+        0,
+      ); // 7 AM
       final endOfDay = DateTime(date.year, date.month, date.day, 19, 0); // 7 PM
-      
+
       // Get all active bookings for the day, sorted by start time
       final bookings = await getBookingsForDate(date);
-      bookings.sort((a, b) => a.appointmentDateTime.compareTo(b.appointmentDateTime));
-      
+      bookings.sort(
+        (a, b) => a.appointmentDateTime.compareTo(b.appointmentDateTime),
+      );
+
       // Create a map to track available time slots
       final Map<DateTime, bool> availability = {};
-      
+
       // Create a set of all blocked time periods (entire duration of each booking)
       final List<MapEntry<DateTime, DateTime>> blockedPeriods = [];
-      
+
       for (final booking in bookings) {
         final bookingService = ServicesCatalog.getById(booking.serviceId);
         if (bookingService == null) continue;
-        
+
         final bookingStart = booking.appointmentDateTime;
-        final bookingEnd = bookingStart.add(Duration(minutes: bookingService.durationMinutes));
-        
+        final bookingEnd = bookingStart.add(
+          Duration(minutes: bookingService.durationMinutes),
+        );
+
         // Store the entire blocked period
         blockedPeriods.add(MapEntry(bookingStart, bookingEnd));
-        
+
         // Mark every 15-minute interval within this booking as unavailable
         DateTime blockTime = bookingStart;
         while (blockTime.isBefore(bookingEnd)) {
@@ -570,43 +611,48 @@ class AppDatabase {
           blockTime = blockTime.add(const Duration(minutes: 15));
         }
       }
-      
+
       // Calculate available slots - only slots that don't overlap with any blocked period
       DateTime currentTime = startOfDay;
       while (currentTime.isBefore(endOfDay)) {
         final slotEnd = currentTime.add(Duration(minutes: durationMinutes));
-        
+
         // Check if this slot would fit before shop closes
         if (slotEnd.isAfter(endOfDay)) {
           currentTime = currentTime.add(const Duration(minutes: 15));
           continue;
         }
-        
+
         // Check if this slot overlaps with any blocked period
         bool isBlocked = false;
         for (final period in blockedPeriods) {
           final periodStart = period.key;
           final periodEnd = period.value;
-          
+
           // Check for overlap: slot overlaps if it starts before period ends AND ends after period starts
           if (currentTime.isBefore(periodEnd) && slotEnd.isAfter(periodStart)) {
             isBlocked = true;
             break;
           }
         }
-        
+
         // Only mark as available if not blocked and not already marked
         if (!isBlocked && !availability.containsKey(currentTime)) {
           availability[currentTime] = true;
         }
-        
+
         // Move to next potential slot (15-minute increments for granularity)
         currentTime = currentTime.add(const Duration(minutes: 15));
       }
-      
+
       return availability;
     } catch (e, stackTrace) {
-      AppLogger.error('Error getting time slot availability', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error getting time slot availability',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return {};
     }
   }
@@ -614,7 +660,9 @@ class AppDatabase {
   /// Get booking details with calculated end time
   /// Returns a map with booking info including start and end times
   Future<Map<String, dynamic>> getBookingWithEndTime(Booking booking) async {
-    final service = await getServiceById(booking.serviceId) ?? ServicesCatalog.getById(booking.serviceId);
+    final service =
+        await getServiceById(booking.serviceId) ??
+        ServicesCatalog.getById(booking.serviceId);
     if (service == null) {
       return {
         'booking': booking,
@@ -623,10 +671,10 @@ class AppDatabase {
         'duration': 0,
       };
     }
-    
+
     final startTime = booking.appointmentDateTime;
     final endTime = startTime.add(Duration(minutes: service.durationMinutes));
-    
+
     return {
       'booking': booking,
       'startTime': startTime,
@@ -636,20 +684,22 @@ class AppDatabase {
   }
 
   /// Get all bookings for a date with their calculated end times
-  Future<List<Map<String, dynamic>>> getBookingsWithEndTimes(DateTime date) async {
+  Future<List<Map<String, dynamic>>> getBookingsWithEndTimes(
+    DateTime date,
+  ) async {
     final bookings = await getBookingsForDate(date);
     final List<Map<String, dynamic>> bookingsWithTimes = [];
-    
+
     for (final booking in bookings) {
       final bookingInfo = await getBookingWithEndTime(booking);
       bookingsWithTimes.add(bookingInfo);
     }
-    
+
     return bookingsWithTimes;
   }
 
   // ---- SERVICE MANAGEMENT ----
-  
+
   /// Get all services from database
   Future<List<Service>> getAllServices() async {
     try {
@@ -660,12 +710,16 @@ class AppDatabase {
         whereArgs: [1],
         orderBy: 'name ASC',
       );
-      return rows.map((row) => Service(
-        id: row['id'] as String,
-        name: row['name'] as String,
-        priceKsh: row['price_ksh'] as int,
-        durationMinutes: row['duration_minutes'] as int,
-      )).toList();
+      return rows
+          .map(
+            (row) => Service(
+              id: row['id'] as String,
+              name: row['name'] as String,
+              priceKsh: row['price_ksh'] as int,
+              durationMinutes: row['duration_minutes'] as int,
+            ),
+          )
+          .toList();
     } catch (e, stackTrace) {
       AppLogger.error('Error getting services', e, stackTrace, 'AppDatabase');
       return [];
@@ -691,7 +745,12 @@ class AppDatabase {
         durationMinutes: row['duration_minutes'] as int,
       );
     } catch (e, stackTrace) {
-      AppLogger.error('Error getting service by ID', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error getting service by ID',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return null;
     }
   }
@@ -763,7 +822,7 @@ class AppDatabase {
   }
 
   // ---- BOOKING MANAGEMENT ----
-  
+
   /// Update a booking
   Future<void> updateBooking(Booking booking) async {
     try {
@@ -809,7 +868,7 @@ class AppDatabase {
   }
 
   // ---- ANALYTICS ----
-  
+
   /// Get total number of bookings
   Future<int> getTotalBookings() async {
     try {
@@ -819,7 +878,12 @@ class AppDatabase {
       );
       return (rows.first['count'] as int?) ?? 0;
     } catch (e, stackTrace) {
-      AppLogger.error('Error getting total bookings', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error getting total bookings',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return 0;
     }
   }
@@ -838,7 +902,7 @@ class AppDatabase {
         ORDER BY count DESC
         LIMIT 5
       ''');
-      
+
       final Map<int, int> peakHours = {};
       for (final row in rows) {
         final hour = row['hour'] as int?;
@@ -855,10 +919,13 @@ class AppDatabase {
   }
 
   /// Get most popular services
-  Future<List<Map<String, dynamic>>> getMostPopularServices({int limit = 5}) async {
+  Future<List<Map<String, dynamic>>> getMostPopularServices({
+    int limit = 5,
+  }) async {
     try {
       final db = await database;
-      final rows = await db.rawQuery('''
+      final rows = await db.rawQuery(
+        '''
         SELECT 
           service_id,
           service_name,
@@ -869,16 +936,27 @@ class AppDatabase {
         GROUP BY service_id, service_name
         ORDER BY booking_count DESC
         LIMIT ?
-      ''', [limit]);
-      
-      return rows.map((row) => {
-        'service_id': row['service_id'] as String,
-        'service_name': row['service_name'] as String,
-        'booking_count': row['booking_count'] as int,
-        'total_revenue': row['total_revenue'] as int,
-      }).toList();
+      ''',
+        [limit],
+      );
+
+      return rows
+          .map(
+            (row) => {
+              'service_id': row['service_id'] as String,
+              'service_name': row['service_name'] as String,
+              'booking_count': row['booking_count'] as int,
+              'total_revenue': row['total_revenue'] as int,
+            },
+          )
+          .toList();
     } catch (e, stackTrace) {
-      AppLogger.error('Error getting popular services', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error getting popular services',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return [];
     }
   }
@@ -892,7 +970,12 @@ class AppDatabase {
       );
       return (rows.first['total'] as int?) ?? 0;
     } catch (e, stackTrace) {
-      AppLogger.error('Error getting total revenue', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error getting total revenue',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return 0;
     }
   }
@@ -900,13 +983,19 @@ class AppDatabase {
   /// Check if a date is fully booked
   Future<bool> isDateFullyBooked(DateTime date) async {
     try {
-      final startOfDay = DateTime(date.year, date.month, date.day, 7, 0); // 7 AM
+      final startOfDay = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        7,
+        0,
+      ); // 7 AM
       final endOfDay = DateTime(date.year, date.month, date.day, 19, 0); // 7 PM
       final totalMinutes = endOfDay.difference(startOfDay).inMinutes;
-      
+
       // Get all active bookings for the day
       final bookings = await getBookingsForDate(date);
-      
+
       // Calculate total booked time
       int totalBookedMinutes = 0;
       for (final booking in bookings) {
@@ -915,12 +1004,17 @@ class AppDatabase {
           totalBookedMinutes += bookingService.durationMinutes;
         }
       }
-      
+
       // Consider fully booked if booked time is >= 95% of available time
       // (allowing small gaps for rounding)
       return totalBookedMinutes >= (totalMinutes * 0.95);
     } catch (e, stackTrace) {
-      AppLogger.error('Error checking if date is fully booked', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error checking if date is fully booked',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return false;
     }
   }
@@ -931,18 +1025,25 @@ class AppDatabase {
       final startOfMonth = DateTime(year, month, 1);
       final endOfMonth = DateTime(year, month + 1, 1);
       final Set<DateTime> fullyBookedDates = {};
-      
+
       DateTime currentDate = startOfMonth;
       while (currentDate.isBefore(endOfMonth)) {
         if (await isDateFullyBooked(currentDate)) {
-          fullyBookedDates.add(DateTime(currentDate.year, currentDate.month, currentDate.day));
+          fullyBookedDates.add(
+            DateTime(currentDate.year, currentDate.month, currentDate.day),
+          );
         }
         currentDate = currentDate.add(const Duration(days: 1));
       }
-      
+
       return fullyBookedDates;
     } catch (e, stackTrace) {
-      AppLogger.error('Error getting fully booked dates', e, stackTrace, 'AppDatabase');
+      AppLogger.error(
+        'Error getting fully booked dates',
+        e,
+        stackTrace,
+        'AppDatabase',
+      );
       return {};
     }
   }

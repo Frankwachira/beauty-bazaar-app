@@ -54,13 +54,13 @@ class _BeautyBazaarAppState extends State<BeautyBazaarApp> {
     try {
       AppLogger.debug('Checking if users exist in database');
       final db = AppDatabase();
-      
+
       // Ensure database is initialized
       await db.database;
-      
+
       final hasUsers = await db.hasAnyUsers();
       AppLogger.debug('Users exist: $hasUsers');
-      
+
       if (mounted) {
         setState(() {
           _hasUsers = hasUsers;
@@ -77,7 +77,7 @@ class _BeautyBazaarAppState extends State<BeautyBazaarApp> {
       }
     }
   }
-  
+
   // Method to refresh user check (can be called after account creation)
   void refreshUserCheck() {
     _checkUsers();
@@ -117,9 +117,7 @@ class _BeautyBazaarAppState extends State<BeautyBazaarApp> {
       ),
       home: _isInitialized
           ? (_hasUsers ? const HomeScreen() : const SetupScreen())
-          : const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
+          : const Scaffold(body: Center(child: CircularProgressIndicator())),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -153,9 +151,9 @@ class _SetupScreenState extends State<SetupScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
       return;
     }
 
@@ -164,7 +162,7 @@ class _SetupScreenState extends State<SetupScreen> {
     try {
       final username = _usernameController.text.trim();
       final password = _passwordController.text.trim();
-      
+
       if (username.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Username cannot be empty')),
@@ -172,7 +170,7 @@ class _SetupScreenState extends State<SetupScreen> {
         setState(() => _isCreating = false);
         return;
       }
-      
+
       if (password.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password cannot be empty')),
@@ -180,13 +178,13 @@ class _SetupScreenState extends State<SetupScreen> {
         setState(() => _isCreating = false);
         return;
       }
-      
+
       AppLogger.info('Creating admin account: $username');
       final db = AppDatabase();
-      
+
       // Ensure database is initialized
       await db.database;
-      
+
       await db.createUser(username, password);
       AppLogger.info('Admin account created successfully');
 
@@ -218,7 +216,12 @@ class _SetupScreenState extends State<SetupScreen> {
         );
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error creating admin account', e, stackTrace, 'SetupScreen');
+      AppLogger.error(
+        'Error creating admin account',
+        e,
+        stackTrace,
+        'SetupScreen',
+      );
       if (!mounted) return;
       setState(() => _isCreating = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -245,11 +248,7 @@ class _SetupScreenState extends State<SetupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(
-                Icons.store,
-                size: 80,
-                color: Color(0xFFAD1457),
-              ),
+              const Icon(Icons.store, size: 80, color: Color(0xFFAD1457)),
               const SizedBox(height: 24),
               Text(
                 'Welcome to BeautyBazaar!',
@@ -284,9 +283,12 @@ class _SetupScreenState extends State<SetupScreen> {
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                     ),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
                 validator: (v) => (v == null || v.length < 4)
@@ -304,7 +306,8 @@ class _SetupScreenState extends State<SetupScreen> {
                     icon: Icon(
                       _obscureConfirm ? Icons.visibility : Icons.visibility_off,
                     ),
-                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                    onPressed: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                 ),
                 validator: (v) => (v == null || v.isEmpty)
@@ -437,18 +440,18 @@ class _BookingScreenState extends State<BookingScreen> {
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final db = AppDatabase();
-    
+
     // Get fully booked dates for the current month and next few months
     final currentMonth = DateTime(now.year, now.month);
     final Set<DateTime> fullyBookedDates = {};
-    
+
     // Check current month and next 3 months
     for (int i = 0; i < 4; i++) {
       final month = DateTime(currentMonth.year, currentMonth.month + i);
       final bookedDates = await db.getFullyBookedDates(month.year, month.month);
       fullyBookedDates.addAll(bookedDates);
     }
-    
+
     final date = await showDatePicker(
       context: context,
       firstDate: now,
@@ -474,9 +477,9 @@ class _BookingScreenState extends State<BookingScreen> {
             builder: (context) {
               // Customize the calendar to show fully booked dates
               return MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: MediaQuery.of(context).textScaler,
-                ),
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: MediaQuery.of(context).textScaler),
                 child: child!,
               );
             },
@@ -485,46 +488,48 @@ class _BookingScreenState extends State<BookingScreen> {
       },
     );
     if (date == null) return;
-    
+
     // Check if the selected date is fully booked
     final isFullyBooked = fullyBookedDates.contains(
       DateTime(date.year, date.month, date.day),
     );
-    
+
     if (isFullyBooked) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('This date is fully booked. Please select another date.'),
+            content: Text(
+              'This date is fully booked. Please select another date.',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
       }
       return;
     }
-    
+
     setState(() {
       _selectedDate = date;
       _selectedDateTime = null; // Reset time selection when date changes
       _timeSlotAvailability = {};
     });
-    
+
     // Load time slot availability for the selected date
     await _loadTimeSlots(date);
   }
 
   Future<void> _loadTimeSlots(DateTime date) async {
     if (_selectedService == null) return;
-    
+
     setState(() => _isLoadingSlots = true);
-    
+
     try {
       final db = AppDatabase();
       final availability = await db.getTimeSlotAvailability(
         date,
         _selectedService!.durationMinutes,
       );
-      
+
       if (mounted) {
         setState(() {
           _timeSlotAvailability = availability;
@@ -532,7 +537,12 @@ class _BookingScreenState extends State<BookingScreen> {
         });
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error loading time slots', e, stackTrace, 'BookingScreen');
+      AppLogger.error(
+        'Error loading time slots',
+        e,
+        stackTrace,
+        'BookingScreen',
+      );
       if (mounted) {
         setState(() => _isLoadingSlots = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -576,19 +586,21 @@ class _BookingScreenState extends State<BookingScreen> {
     }
 
     // Get only available slots and sort them
-    final availableSlots = _timeSlotAvailability.entries
-        .where((entry) => entry.value == true)
-        .map((entry) => entry.key)
-        .toList()
-      ..sort((a, b) => a.compareTo(b));
-    
+    final availableSlots =
+        _timeSlotAvailability.entries
+            .where((entry) => entry.value == true)
+            .map((entry) => entry.key)
+            .toList()
+          ..sort((a, b) => a.compareTo(b));
+
     // Also get booked slots for display
-    final bookedSlots = _timeSlotAvailability.entries
-        .where((entry) => entry.value == false)
-        .map((entry) => entry.key)
-        .toList()
-      ..sort((a, b) => a.compareTo(b));
-    
+    final bookedSlots =
+        _timeSlotAvailability.entries
+            .where((entry) => entry.value == false)
+            .map((entry) => entry.key)
+            .toList()
+          ..sort((a, b) => a.compareTo(b));
+
     // Combine and sort all slots
     final allSlots = [...availableSlots, ...bookedSlots]
       ..sort((a, b) => a.compareTo(b));
@@ -598,7 +610,8 @@ class _BookingScreenState extends State<BookingScreen> {
       runSpacing: 8,
       children: allSlots.map((slot) {
         final isAvailable = availableSlots.contains(slot);
-        final isSelected = _selectedDateTime != null &&
+        final isSelected =
+            _selectedDateTime != null &&
             _selectedDateTime!.year == slot.year &&
             _selectedDateTime!.month == slot.month &&
             _selectedDateTime!.day == slot.day &&
@@ -614,14 +627,14 @@ class _BookingScreenState extends State<BookingScreen> {
               color: isSelected
                   ? Theme.of(context).colorScheme.primary
                   : isAvailable
-                      ? Colors.green.shade50
-                      : Colors.grey.shade300,
+                  ? Colors.green.shade50
+                  : Colors.grey.shade300,
               border: Border.all(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
                     : isAvailable
-                        ? Colors.green
-                        : Colors.grey,
+                    ? Colors.green
+                    : Colors.grey,
                 width: isSelected ? 2 : 1,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -636,8 +649,8 @@ class _BookingScreenState extends State<BookingScreen> {
                     color: isSelected
                         ? Colors.white
                         : isAvailable
-                            ? Colors.green.shade900
-                            : Colors.grey.shade700,
+                        ? Colors.green.shade900
+                        : Colors.grey.shade700,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -647,8 +660,8 @@ class _BookingScreenState extends State<BookingScreen> {
                   color: isSelected
                       ? Colors.white
                       : isAvailable
-                          ? Colors.green
-                          : Colors.grey,
+                      ? Colors.green
+                      : Colors.grey,
                 ),
                 Text(
                   isAvailable ? 'Free' : 'Booked',
@@ -657,8 +670,8 @@ class _BookingScreenState extends State<BookingScreen> {
                     color: isSelected
                         ? Colors.white
                         : isAvailable
-                            ? Colors.green.shade900
-                            : Colors.grey.shade700,
+                        ? Colors.green.shade900
+                        : Colors.grey.shade700,
                   ),
                 ),
               ],
@@ -725,10 +738,7 @@ class _BookingScreenState extends State<BookingScreen> {
         children: [
           Text(
             service,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
           Row(
@@ -762,23 +772,23 @@ class _BookingScreenState extends State<BookingScreen> {
         }
 
         final bookings = snapshot.data!;
-        
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 16),
             Text(
               'Booked Time Blocks',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             ...bookings.map((bookingInfo) {
               final booking = bookingInfo['booking'] as Booking;
               final startTime = bookingInfo['startTime'] as DateTime;
               final endTime = bookingInfo['endTime'] as DateTime;
-              
+
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
@@ -813,7 +823,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         );
       },
@@ -824,12 +834,14 @@ class _BookingScreenState extends State<BookingScreen> {
     if (_formKey.currentState == null || !_formKey.currentState!.validate()) {
       return;
     }
-    
+
     // Double check that we have all required values
     final selectedService = _selectedService;
     final selectedDateTime = _selectedDateTime;
-    
-    if (selectedService == null || _selectedDate == null || selectedDateTime == null) {
+
+    if (selectedService == null ||
+        _selectedDate == null ||
+        selectedDateTime == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select service, date and time')),
@@ -842,7 +854,9 @@ class _BookingScreenState extends State<BookingScreen> {
 
     try {
       // Normalize phone number before saving
-      final normalizedPhone = PhoneValidator.normalizePhone(_phoneController.text.trim());
+      final normalizedPhone = PhoneValidator.normalizePhone(
+        _phoneController.text.trim(),
+      );
       if (normalizedPhone == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -859,12 +873,14 @@ class _BookingScreenState extends State<BookingScreen> {
         selectedDateTime,
         selectedService.durationMinutes,
       );
-      
+
       if (hasConflict) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('This time slot is no longer available. Please select another time.'),
+              content: Text(
+                'This time slot is no longer available. Please select another time.',
+              ),
             ),
           );
         }
@@ -877,10 +893,12 @@ class _BookingScreenState extends State<BookingScreen> {
       }
 
       AppLogger.info('Creating booking for ${_nameController.text.trim()}');
-      
+
       // Calculate end time based on service duration
-      final endTime = selectedDateTime.add(Duration(minutes: selectedService.durationMinutes));
-      
+      final endTime = selectedDateTime.add(
+        Duration(minutes: selectedService.durationMinutes),
+      );
+
       final booking = Booking(
         clientName: _nameController.text.trim(),
         phoneNumber: normalizedPhone,
@@ -891,12 +909,12 @@ class _BookingScreenState extends State<BookingScreen> {
       );
       await AppDatabase().insertBooking(booking);
       AppLogger.info('Booking created successfully: ${booking.id}');
-      
+
       // Reload time slots immediately to reflect the new booking
       if (_selectedDate != null) {
         await _loadTimeSlots(_selectedDate!);
       }
-      
+
       if (!mounted) return;
 
       // Show confirmation dialog with start and end times
@@ -989,10 +1007,12 @@ class _BookingScreenState extends State<BookingScreen> {
                         for (final s in ServicesCatalog.all)
                           DropdownMenuItem(
                             value: s,
-                            child: Text('${s.name} — KSH ${s.priceKsh} (${_formatDuration(s.durationMinutes)})'),
+                            child: Text(
+                              '${s.name} — KSH ${s.priceKsh} (${_formatDuration(s.durationMinutes)})',
+                            ),
                           ),
                       ],
-                value: _selectedService,
+                initialValue: _selectedService,
                 onChanged: (s) {
                   if (s != null) {
                     setState(() {
@@ -1029,8 +1049,8 @@ class _BookingScreenState extends State<BookingScreen> {
                             ? 'Select Date'
                             : DateFormat('EEE, d MMM yyyy').format(date),
                         style: TextStyle(
-                          color: date == null 
-                              ? Colors.grey[600] 
+                          color: date == null
+                              ? Colors.grey[600]
                               : Colors.black87,
                         ),
                       );
@@ -1106,7 +1126,9 @@ class _BookingScreenState extends State<BookingScreen> {
               ],
               const SizedBox(height: 20),
               // Show button only when all required fields are filled
-              if (_selectedService != null && _selectedDate != null && _selectedDateTime != null)
+              if (_selectedService != null &&
+                  _selectedDate != null &&
+                  _selectedDateTime != null)
                 ElevatedButton(
                   onPressed: _isSubmitting ? null : _submit,
                   style: ElevatedButton.styleFrom(
@@ -1119,12 +1141,17 @@ class _BookingScreenState extends State<BookingScreen> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : const Text(
                           'Confirm Booking',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                 )
               else
@@ -1173,14 +1200,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
     final username = _userController.text.trim();
     final password = _passController.text.trim();
-    
+
     if (username.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your username')),
       );
       return;
     }
-    
+
     if (password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your password')),
@@ -1193,10 +1220,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     try {
       AppLogger.info('Admin login attempt for $username');
       final db = AppDatabase();
-      
+
       // Ensure database is initialized
       await db.database;
-      
+
       final isValid = await db.validateLogin(username, password);
 
       if (!mounted) return;
@@ -1212,24 +1239,29 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         AppLogger.warning('Admin login failed: invalid credentials');
         if (mounted) {
           setState(() => _isLoading = false);
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(
-            content: Text('Invalid username or password. Please try again.'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid username or password. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error during admin login', e, stackTrace, 'AdminLoginScreen');
+      AppLogger.error(
+        'Error during admin login',
+        e,
+        stackTrace,
+        'AdminLoginScreen',
+      );
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(
-        content: Text('Login error: ${e.toString()}'),
-        backgroundColor: Colors.red,
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Login error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -1291,7 +1323,8 @@ class AdminDashboard extends StatefulWidget {
   State<AdminDashboard> createState() => _AdminDashboardState();
 }
 
-class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProviderStateMixin {
+class _AdminDashboardState extends State<AdminDashboard>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int _revenue = 0;
@@ -1329,7 +1362,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       final peakHours = await db.getPeakHours();
       final popularServices = await db.getMostPopularServices();
       final totalRevenue = await db.getTotalRevenue();
-      
+
       AppLogger.debug('Loaded ${all.length} bookings, revenue: KSH $rev');
       if (mounted) {
         setState(() {
@@ -1343,7 +1376,12 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         });
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error loading admin dashboard data', e, stackTrace, 'AdminDashboard');
+      AppLogger.error(
+        'Error loading admin dashboard data',
+        e,
+        stackTrace,
+        'AdminDashboard',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading data: ${e.toString()}')),
@@ -1379,8 +1417,8 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes, Cancel'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Yes, Cancel'),
           ),
         ],
       ),
@@ -1393,7 +1431,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       final db = AppDatabase();
       await db.cancelBooking(bookingId);
       AppLogger.info('Booking cancelled successfully: $bookingId');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Booking cancelled successfully')),
@@ -1401,7 +1439,12 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         await _load(); // Refresh the list
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error cancelling booking', e, stackTrace, 'AdminDashboard');
+      AppLogger.error(
+        'Error cancelling booking',
+        e,
+        stackTrace,
+        'AdminDashboard',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error cancelling booking: ${e.toString()}')),
@@ -1412,9 +1455,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 
   Future<void> _editBooking(Booking booking) async {
     final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => EditBookingScreen(booking: booking),
-      ),
+      MaterialPageRoute(builder: (_) => EditBookingScreen(booking: booking)),
     );
     if (result == true) {
       await _load();
@@ -1426,7 +1467,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Booking'),
-        content: const Text('Are you sure you want to permanently delete this booking? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to permanently delete this booking? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -1434,8 +1477,8 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -1448,7 +1491,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       final db = AppDatabase();
       await db.deleteBooking(bookingId);
       AppLogger.info('Booking deleted successfully: $bookingId');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Booking deleted successfully')),
@@ -1456,7 +1499,12 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         await _load();
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error deleting booking', e, stackTrace, 'AdminDashboard');
+      AppLogger.error(
+        'Error deleting booking',
+        e,
+        stackTrace,
+        'AdminDashboard',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting booking: ${e.toString()}')),
@@ -1551,9 +1599,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         const SizedBox(height: 24),
         Text(
           'All Bookings',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         if (_bookings.isEmpty)
@@ -1570,7 +1618,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                 final endTime = service != null
                     ? startTime.add(Duration(minutes: service.durationMinutes))
                     : startTime;
-                
+
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
@@ -1614,7 +1662,11 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                                   value: 'cancel',
                                   child: Row(
                                     children: [
-                                      Icon(Icons.cancel, color: Colors.orange, size: 20),
+                                      Icon(
+                                        Icons.cancel,
+                                        color: Colors.orange,
+                                        size: 20,
+                                      ),
                                       SizedBox(width: 8),
                                       Text('Cancel'),
                                     ],
@@ -1624,7 +1676,11 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                                 value: 'delete',
                                 child: Row(
                                   children: [
-                                    Icon(Icons.delete, color: Colors.red, size: 20),
+                                    Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
                                     SizedBox(width: 8),
                                     Text('Delete'),
                                   ],
@@ -1659,9 +1715,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           children: [
             Text(
               'Services',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             ElevatedButton.icon(
               onPressed: () => _addService(),
@@ -1744,9 +1800,8 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                       ),
                       Text(
                         '$_totalBookings',
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -1774,10 +1829,11 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                       ),
                       Text(
                         currency.format(_totalRevenue),
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
                       ),
                     ],
                   ),
@@ -1790,9 +1846,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         // Peak Hours
         Text(
           'Peak Hours',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         if (_peakHours.isEmpty)
@@ -1828,10 +1884,16 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
                               ),
                               child: FractionallySizedBox(
                                 alignment: Alignment.centerLeft,
-                                widthFactor: count / (_peakHours.values.reduce((a, b) => a > b ? a : b)),
+                                widthFactor:
+                                    count /
+                                    (_peakHours.values.reduce(
+                                      (a, b) => a > b ? a : b,
+                                    )),
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                 ),
@@ -1852,9 +1914,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         // Most Popular Services
         Text(
           'Most Popular Services',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         if (_popularServices.isEmpty)
@@ -1902,9 +1964,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   }
 
   Future<void> _addService() async {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ServiceEditScreen()),
-    );
+    final result = await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ServiceEditScreen()));
     if (result == true) {
       await _load();
     }
@@ -1924,7 +1986,9 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Service'),
-        content: const Text('Are you sure you want to delete this service? This will remove it from the service list.'),
+        content: const Text(
+          'Are you sure you want to delete this service? This will remove it from the service list.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -1932,8 +1996,8 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -1946,7 +2010,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       final db = AppDatabase();
       await db.deleteService(serviceId);
       AppLogger.info('Service deleted successfully: $serviceId');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Service deleted successfully')),
@@ -1954,7 +2018,12 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         await _load();
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error deleting service', e, stackTrace, 'AdminDashboard');
+      AppLogger.error(
+        'Error deleting service',
+        e,
+        stackTrace,
+        'AdminDashboard',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting service: ${e.toString()}')),
@@ -2048,10 +2117,12 @@ class _EditBookingScreenState extends State<EditBookingScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedService == null || _selectedDate == null || _selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
-      );
+    if (_selectedService == null ||
+        _selectedDate == null ||
+        _selectedTime == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please fill all fields')));
       return;
     }
 
@@ -2069,7 +2140,7 @@ class _EditBookingScreenState extends State<EditBookingScreen> {
       );
 
       await db.updateBooking(updatedBooking);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Booking updated successfully')),
@@ -2077,7 +2148,12 @@ class _EditBookingScreenState extends State<EditBookingScreen> {
         Navigator.of(context).pop(true);
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error updating booking', e, stackTrace, 'EditBookingScreen');
+      AppLogger.error(
+        'Error updating booking',
+        e,
+        stackTrace,
+        'EditBookingScreen',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error updating booking: ${e.toString()}')),
@@ -2099,7 +2175,8 @@ class _EditBookingScreenState extends State<EditBookingScreen> {
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Client Name'),
-              validator: (v) => (v == null || v.isEmpty) ? 'Enter client name' : null,
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Enter client name' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -2110,7 +2187,7 @@ class _EditBookingScreenState extends State<EditBookingScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<Service>(
-              value: _selectedService,
+              initialValue: _selectedService,
               decoration: const InputDecoration(labelText: 'Service'),
               items: _services.map((service) {
                 return DropdownMenuItem(
@@ -2118,23 +2195,28 @@ class _EditBookingScreenState extends State<EditBookingScreen> {
                   child: Text('${service.name} - KSH ${service.priceKsh}'),
                 );
               }).toList(),
-              onChanged: (service) => setState(() => _selectedService = service),
+              onChanged: (service) =>
+                  setState(() => _selectedService = service),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _pickDate,
               icon: const Icon(Icons.calendar_today),
-              label: Text(_selectedDate == null
-                  ? 'Select Date'
-                  : DateFormat('EEE, d MMM yyyy').format(_selectedDate!)),
+              label: Text(
+                _selectedDate == null
+                    ? 'Select Date'
+                    : DateFormat('EEE, d MMM yyyy').format(_selectedDate!),
+              ),
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _pickTime,
               icon: const Icon(Icons.access_time),
-              label: Text(_selectedTime == null
-                  ? 'Select Time'
-                  : DateFormat('HH:mm').format(_selectedTime!)),
+              label: Text(
+                _selectedTime == null
+                    ? 'Select Time'
+                    : DateFormat('HH:mm').format(_selectedTime!),
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -2177,8 +2259,12 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
     super.initState();
     _isEditMode = widget.service != null;
     _nameController = TextEditingController(text: widget.service?.name ?? '');
-    _priceController = TextEditingController(text: widget.service?.priceKsh.toString() ?? '');
-    _durationController = TextEditingController(text: widget.service?.durationMinutes.toString() ?? '');
+    _priceController = TextEditingController(
+      text: widget.service?.priceKsh.toString() ?? '',
+    );
+    _durationController = TextEditingController(
+      text: widget.service?.durationMinutes.toString() ?? '',
+    );
     _idController = TextEditingController(text: widget.service?.id ?? '');
   }
 
@@ -2213,12 +2299,23 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isEditMode ? 'Service updated successfully' : 'Service added successfully')),
+          SnackBar(
+            content: Text(
+              _isEditMode
+                  ? 'Service updated successfully'
+                  : 'Service added successfully',
+            ),
+          ),
         );
         Navigator.of(context).pop(true);
       }
     } catch (e, stackTrace) {
-      AppLogger.error('Error saving service', e, stackTrace, 'ServiceEditScreen');
+      AppLogger.error(
+        'Error saving service',
+        e,
+        stackTrace,
+        'ServiceEditScreen',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error saving service: ${e.toString()}')),
@@ -2245,7 +2342,8 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
                   hintText: 'e.g., manicure_pedicure',
                   helperText: 'Lowercase, use underscores for spaces',
                 ),
-                validator: (v) => (v == null || v.isEmpty) ? 'Enter service ID' : null,
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Enter service ID' : null,
               )
             else
               TextFormField(
@@ -2257,7 +2355,8 @@ class _ServiceEditScreenState extends State<ServiceEditScreen> {
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Service Name'),
-              validator: (v) => (v == null || v.isEmpty) ? 'Enter service name' : null,
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Enter service name' : null,
             ),
             const SizedBox(height: 16),
             TextFormField(

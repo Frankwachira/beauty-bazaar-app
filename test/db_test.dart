@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:beautybazaarapp/db.dart';
 import 'package:beautybazaarapp/models.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'package:sqflite/sqflite.dart';
 
 void main() {
   // Initialize FFI for testing
@@ -174,10 +173,7 @@ void main() {
 
     test('cancelBooking should throw error for non-existent booking', () async {
       // Act & Assert
-      expect(
-        () => db.cancelBooking(99999),
-        throwsA(isA<Exception>()),
-      );
+      expect(() => db.cancelBooking(99999), throwsA(isA<Exception>()));
     });
 
     test('createUser should create a new user', () async {
@@ -249,45 +245,48 @@ void main() {
       expect(exists, isFalse);
     });
 
-    test('findBookingsByPhone should return bookings for matching phone', () async {
-      // Arrange
-      final phone = '254712345678';
-      final booking1 = Booking(
-        clientName: 'User 1',
-        phoneNumber: phone,
-        serviceId: 'gumgell',
-        serviceName: 'Gumgell',
-        priceKsh: 1500,
-        appointmentDateTime: DateTime.now().add(const Duration(days: 1)),
-      );
-      final booking2 = Booking(
-        clientName: 'User 2',
-        phoneNumber: phone,
-        serviceId: 'acrylics',
-        serviceName: 'Acrylics',
-        priceKsh: 2500,
-        appointmentDateTime: DateTime.now().add(const Duration(days: 2)),
-      );
-      final booking3 = Booking(
-        clientName: 'User 3',
-        phoneNumber: '254712345679',
-        serviceId: 'stickons',
-        serviceName: 'Stickons',
-        priceKsh: 1000,
-        appointmentDateTime: DateTime.now().add(const Duration(days: 3)),
-      );
+    test(
+      'findBookingsByPhone should return bookings for matching phone',
+      () async {
+        // Arrange
+        final phone = '254712345678';
+        final booking1 = Booking(
+          clientName: 'User 1',
+          phoneNumber: phone,
+          serviceId: 'gumgell',
+          serviceName: 'Gumgell',
+          priceKsh: 1500,
+          appointmentDateTime: DateTime.now().add(const Duration(days: 1)),
+        );
+        final booking2 = Booking(
+          clientName: 'User 2',
+          phoneNumber: phone,
+          serviceId: 'acrylics',
+          serviceName: 'Acrylics',
+          priceKsh: 2500,
+          appointmentDateTime: DateTime.now().add(const Duration(days: 2)),
+        );
+        final booking3 = Booking(
+          clientName: 'User 3',
+          phoneNumber: '254712345679',
+          serviceId: 'stickons',
+          serviceName: 'Stickons',
+          priceKsh: 1000,
+          appointmentDateTime: DateTime.now().add(const Duration(days: 3)),
+        );
 
-      await db.insertBooking(booking1);
-      await db.insertBooking(booking2);
-      await db.insertBooking(booking3);
+        await db.insertBooking(booking1);
+        await db.insertBooking(booking2);
+        await db.insertBooking(booking3);
 
-      // Act
-      final bookings = await db.findBookingsByPhone(phone);
+        // Act
+        final bookings = await db.findBookingsByPhone(phone);
 
-      // Assert
-      expect(bookings.length, greaterThanOrEqualTo(2));
-      expect(bookings.every((b) => b.phoneNumber == phone), isTrue);
-    });
+        // Assert
+        expect(bookings.length, greaterThanOrEqualTo(2));
+        expect(bookings.every((b) => b.phoneNumber == phone), isTrue);
+      },
+    );
 
     test('getUserRole should return role for existing user', () async {
       // Arrange
@@ -310,4 +309,3 @@ void main() {
     });
   });
 }
-
